@@ -22,7 +22,8 @@ type State = {
 type User = {
   fid: number;
   image: string;
-  name: string;
+  username: string;
+  displayName: string;
 };
 
 const initialState: State = { phase: "start" };
@@ -50,7 +51,8 @@ const findUserById = async (fid: number): Promise<User |null> => {
         return {
           fid: user.body.id,
           image: user.body.avatarUrl,
-          name: user.body.displayName,
+          username: user.body.username,
+          displayName: user.body.displayName,
         };
       }
     }
@@ -76,7 +78,7 @@ const findUser = async (): Promise<User> => {
 
   return {
     fid: 0,
-    name: "invalid",
+    displayName: "invalid",
     image: `https://picsum.photos/id/237/200/400.jpg`,
   };
 };
@@ -181,7 +183,7 @@ export default async function Home({
           <div tw="flex w-full h-full bg-slate-700 text-white justify-center items-center">
             <img src={otherUser?.image} tw="object-cover w-96 h-96" />
             <p>
-              you like? {otherUser?.name} ({otherUser?.fid}) ??
+              you like? {otherUser?.displayName} ({otherUser?.fid}) ??
             </p>
           </div>
         </FrameImage>
@@ -204,7 +206,7 @@ export default async function Home({
           </div>
         </FrameImage>
         <FrameButton onClick={dispatch}>meh</FrameButton>
-        <FrameButton href={`https://www.google.com`}>to Profile</FrameButton>
+        <FrameButton href={`https://warpcast.com/${otherUser?.username}`}>to Profile</FrameButton>
       </FrameContainer>
     );
   }
