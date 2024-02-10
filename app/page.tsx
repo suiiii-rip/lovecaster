@@ -13,10 +13,11 @@ import Link from "next/link";
 import { DEBUG_HUB_OPTIONS } from "./debug/constants";
 import { getTokenUrl } from "frames.js";
 import Image from "next/image";
+import { kv } from "@vercel/kv";
 
 type State = {
   phase: "start" | "matching" | "matched";
-  fid?: number
+  fid?: number;
 };
 
 type User = {
@@ -24,6 +25,10 @@ type User = {
   image: string;
   username: string;
   displayName: string;
+};
+
+type Match = {
+  liked: boolean;
 };
 
 const initialState: State = { phase: "start" };
@@ -40,25 +45,24 @@ const reducer: FrameReducer<State> = (state, action) => {
 const MAX_FID = 326948;
 const MAX_USER_RETRY = 5;
 
-const findUserById = async (fid: number): Promise<User |null> => {
-    const res = await fetch(`https://searchcaster.xyz/api/profiles?fid=${fid}`);
+const findUserById = async (fid: number): Promise<User | null> => {
+  const res = await fetch(`https://searchcaster.xyz/api/profiles?fid=${fid}`);
 
-    if (res.ok) {
-      const data = await res.json();
-      console.log("fetched data", data);
-      const user = data[0];
-      if (user.body.avatarUrl && user.body.displayName) {
-        return {
-          fid: user.body.id,
-          image: user.body.avatarUrl,
-          username: user.body.username,
-          displayName: user.body.displayName,
-        };
-      }
+  if (res.ok) {
+    const data = await res.json();
+    console.log("fetched data", data);
+    const user = data[0];
+    if (user.body.avatarUrl && user.body.displayName) {
+      return {
+        fid: user.body.id,
+        image: user.body.avatarUrl,
+        username: user.body.username,
+        displayName: user.body.displayName,
+      };
     }
-    return null;
-
-}
+  }
+  return null;
+};
 const findUser = async (): Promise<User> => {
   const findRandomUser = async (): Promise<User | null> => {
     const id = Math.ceil(Math.random() * MAX_FID);
@@ -67,21 +71,34 @@ const findUser = async (): Promise<User> => {
 
   let user: User | null = null;
   let i = 0;
-  while (!user || i < MAX_USER_RETRY) {
+  while (!user && i < MAX_USER_RETRY) {
     user = await findRandomUser();
     i++;
   }
 
   if (user) {
+    console.log(`Used ${i} tries for find user`);
     return user;
   }
 
+  console.log('Exceeded retry limit to find user');
   return {
     fid: 0,
     displayName: "invalid",
     username: "invalid",
     image: `https://picsum.photos/id/237/200/400.jpg`,
   };
+};
+
+const checkMatch = async (fid1: number, fid2: number): Promise<boolean> => {
+  const id = fid1 < fid2 ? `${fid1}:${fid2}` : `${fid2}:${fid1}`;
+  const match = await kv.get<Match>(id);
+  return !!match?.liked;
+};
+
+const storeLike = async (fid1: number, fid2: number): Promise<void> => {
+  const id = fid1 < fid2 ? `${fid1}:${fid2}` : `${fid2}:${fid1}`;
+  await kv.set<Match>(id, { liked: true });
 };
 
 // This is a react server component only
@@ -130,11 +147,17 @@ export default async function Home({
     if (state.phase === "matching") {
       if (state.fid) {
         // store and check matches
-        if (buttonIndex === 2 && state.fid % 2 === 0) {
-          state.phase = "matched";
+        if (buttonIndex === 2) {
+          // user liked what they saw 👍
+          if (!await checkMatch(requesterFid, state.fid)) {
+            state.phase = "matched";
+            otherUser = (await findUserById(state.fid))!;
+          } else {
+            // the other user did not like yet, continue
+            storeLike(requesterFid, state.fid);
+            otherUser = await findUser();
+          }
           // store like
-          // find user again
-          otherUser = (await findUserById(state.fid!))!;
         } else {
           otherUser = await findUser();
         }
@@ -173,6 +196,29 @@ export default async function Home({
       </FrameContainer>
     );
   } else if (state.phase === "matching") {
+    if (!otherUser?.fid) {
+// please retry
+    frameContainer = (
+      <FrameContainer
+        pathname="/"
+        postUrl="/frames"
+        state={{ ...state, fid: otherUser?.fid }}
+        previousFrame={previousFrame}
+      >
+        <FrameImage>
+          <div tw="flex flex-col w-full h-full bg-slate-700 text-white justify-center items-center">
+            <p>
+              We could not find a high quality user who you might like
+            </p>
+            <p>
+              Please retry!
+            </p>
+          </div>
+        </FrameImage>
+        <FrameButton onClick={dispatch}>Retry</FrameButton>
+      </FrameContainer>
+    );
+    } else {
     frameContainer = (
       <FrameContainer
         pathname="/"
@@ -192,6 +238,7 @@ export default async function Home({
         <FrameButton onClick={dispatch}>yay</FrameButton>
       </FrameContainer>
     );
+    }
   } else if (state.phase === "matched") {
     frameContainer = (
       <FrameContainer
@@ -207,7 +254,9 @@ export default async function Home({
           </div>
         </FrameImage>
         <FrameButton onClick={dispatch}>meh</FrameButton>
-        <FrameButton href={`https://warpcast.com/${otherUser?.username}`}>to Profile</FrameButton>
+        <FrameButton href={`https://warpcast.com/${otherUser?.username}`}>
+          to Profile
+        </FrameButton>
       </FrameContainer>
     );
   }
