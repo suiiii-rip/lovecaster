@@ -79,6 +79,7 @@ const findUser = async (): Promise<User> => {
   return {
     fid: 0,
     displayName: "invalid",
+    username: "invalid",
     image: `https://picsum.photos/id/237/200/400.jpg`,
   };
 };
