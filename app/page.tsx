@@ -16,7 +16,7 @@ import Image from "next/image";
 
 type State = {
   phase: "start" | "matching" | "matched";
-  user?: User;
+  fid?: number
 };
 
 type User = {
@@ -37,12 +37,10 @@ const reducer: FrameReducer<State> = (state, action) => {
 };
 
 const MAX_FID = 326948;
+const MAX_USER_RETRY = 5;
 
-const findUser = async (): Promise<User> => {
-  const findRandomUser = async (): Promise<User | null> => {
-    const id = Math.ceil(Math.random() * MAX_FID);
-
-    const res = await fetch(`https://searchcaster.xyz/api/profiles?fid=${id}`);
+const findUserById = async (fid: number): Promise<User |null> => {
+    const res = await fetch(`https://searchcaster.xyz/api/profiles?fid=${fid}`);
 
     if (res.ok) {
       const data = await res.json();
@@ -57,11 +55,17 @@ const findUser = async (): Promise<User> => {
       }
     }
     return null;
+
+}
+const findUser = async (): Promise<User> => {
+  const findRandomUser = async (): Promise<User | null> => {
+    const id = Math.ceil(Math.random() * MAX_FID);
+    return findUserById(id);
   };
 
   let user: User | null = null;
   let i = 0;
-  while (!user || i < 5) {
+  while (!user || i < MAX_USER_RETRY) {
     user = await findRandomUser();
     i++;
   }
@@ -121,13 +125,14 @@ export default async function Home({
     } = frameMessage;
 
     if (state.phase === "matching") {
-      if (state.user) {
+      if (state.fid) {
         // store and check matches
-        if (buttonIndex === 2 && state.user.fid % 2 === 0) {
+        if (buttonIndex === 2 && state.fid % 2 === 0) {
           state.phase = "matched";
           // store like
+          // find user again
+          otherUser = (await findUserById(state.fid!))!;
         } else {
-          // store like / dislike
           otherUser = await findUser();
         }
       } else {
@@ -169,7 +174,7 @@ export default async function Home({
       <FrameContainer
         pathname="/"
         postUrl="/frames"
-        state={{ ...state, user: otherUser }}
+        state={{ ...state, fid: otherUser?.fid }}
         previousFrame={previousFrame}
       >
         <FrameImage>
@@ -194,7 +199,8 @@ export default async function Home({
       >
         <FrameImage>
           <div tw="flex w-full h-full bg-slate-700 text-white justify-center items-center">
-            Matched! {state.user?.fid} !
+            <img src={otherUser?.image} tw="object-cover w-96 h-96" />
+            Matched! {otherUser?.fid} !
           </div>
         </FrameImage>
         <FrameButton onClick={dispatch}>meh</FrameButton>
