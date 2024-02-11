@@ -2,7 +2,6 @@ import {
   FrameButton,
   FrameContainer,
   FrameImage,
-  FrameInput,
   FrameReducer,
   NextServerPageProps,
   getPreviousFrame,
@@ -11,8 +10,6 @@ import {
 } from "frames.js/next/server";
 import Link from "next/link";
 import { DEBUG_HUB_OPTIONS } from "./debug/constants";
-import { getTokenUrl } from "frames.js";
-import Image from "next/image";
 import { kv } from "@vercel/kv";
 import { createPublicClient, http, parseAbi } from "viem";
 import { optimism } from "viem/chains";
@@ -237,7 +234,7 @@ export default async function Home({
         >
           <FrameImage>
             <div tw="flex flex-col w-full h-full bg-slate-700 text-white justify-center items-center">
-              <p>We could not find a high quality user who you might like</p>
+              <p>We could not find a high quality user who you might like.</p>
               <p>Please retry!</p>
             </div>
           </FrameImage>
@@ -253,15 +250,13 @@ export default async function Home({
           previousFrame={previousFrame}
         >
           <FrameImage>
-            <div tw="flex w-full h-full bg-slate-700 text-white justify-center items-center">
+            <div tw="flex flex-col w-full h-full bg-slate-700 text-white justify-center items-center">
               <img src={otherUser?.image} tw="object-cover w-96 h-96" />
-              <p>
-                you like? {otherUser?.displayName} ({otherUser?.fid}) ??
-              </p>
+              <h4>{otherUser?.displayName}</h4>
             </div>
           </FrameImage>
-          <FrameButton onClick={dispatch}>nope</FrameButton>
-          <FrameButton onClick={dispatch}>yay</FrameButton>
+          <FrameButton onClick={dispatch}>🤷</FrameButton>
+          <FrameButton onClick={dispatch}>❤️</FrameButton>
         </FrameContainer>
       );
     }
@@ -274,12 +269,15 @@ export default async function Home({
         previousFrame={previousFrame}
       >
         <FrameImage>
-          <div tw="flex w-full h-full bg-slate-700 text-white justify-center items-center">
+          <div tw="flex w-full h-full bg-slate-700 text-white justify-center items-center gap-8">
             <img src={otherUser?.image} tw="object-cover w-96 h-96" />
-            Matched! {otherUser?.fid} !
+            <div tw="flex flex-col justify-center items-center pl-16">
+              <p>❤️ It&apos;s a match! ❤️ </p>
+              <p>{otherUser?.displayName}</p>
+            </div>
           </div>
         </FrameImage>
-        <FrameButton onClick={dispatch}>meh</FrameButton>
+        <FrameButton onClick={dispatch}>Find more matches</FrameButton>
         <FrameButton href={`https://warpcast.com/${otherUser?.username}`}>
           to Profile
         </FrameButton>
