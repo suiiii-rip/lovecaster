@@ -14,6 +14,8 @@ import { DEBUG_HUB_OPTIONS } from "./debug/constants";
 import { getTokenUrl } from "frames.js";
 import Image from "next/image";
 import { kv } from "@vercel/kv";
+import { createPublicClient, http, parseAbi } from "viem";
+import { optimism } from "viem/chains";
 
 type State = {
   phase: "start" | "matching" | "matched";
@@ -45,6 +47,34 @@ const reducer: FrameReducer<State> = (state, action) => {
 const MAX_FID = 326948;
 const MAX_USER_RETRY = 5;
 
+let idCounter: number = 0;
+const getMaxId = async (): Promise<number> => {
+  if (idCounter === 0) {
+    try {
+      const client = createPublicClient({
+        chain: optimism,
+        transport: http(),
+      });
+
+      const data = await client.readContract({
+        address: "0x00000000fc6c5f01fc30151999387bb99a9f489b",
+        abi: parseAbi(["function idCounter() view returns (uint256)"]),
+        functionName: "idCounter",
+      });
+
+      idCounter = Number(data);
+      console.log("Set idCounter to", idCounter);
+    } catch (error) {
+      console.error(
+        "Failed to load idCounter from chain, using fallback",
+        error,
+      );
+      idCounter = MAX_FID;
+    }
+  }
+  return idCounter;
+};
+
 const findUserById = async (fid: number): Promise<User | null> => {
   const res = await fetch(`https://searchcaster.xyz/api/profiles?fid=${fid}`);
 
@@ -65,7 +95,7 @@ const findUserById = async (fid: number): Promise<User | null> => {
 };
 const findUser = async (): Promise<User> => {
   const findRandomUser = async (): Promise<User | null> => {
-    const id = Math.ceil(Math.random() * MAX_FID);
+    const id = Math.ceil(Math.random() * (await getMaxId()));
     return findUserById(id);
   };
 
@@ -81,7 +111,7 @@ const findUser = async (): Promise<User> => {
     return user;
   }
 
-  console.log('Exceeded retry limit to find user');
+  console.log("Exceeded retry limit to find user");
   return {
     fid: 0,
     displayName: "invalid",
@@ -149,7 +179,7 @@ export default async function Home({
         // store and check matches
         if (buttonIndex === 2) {
           // user liked what they saw 👍
-          if (!await checkMatch(requesterFid, state.fid)) {
+          if (await checkMatch(requesterFid, state.fid)) {
             state.phase = "matched";
             otherUser = (await findUserById(state.fid))!;
           } else {
@@ -197,47 +227,43 @@ export default async function Home({
     );
   } else if (state.phase === "matching") {
     if (!otherUser?.fid) {
-// please retry
-    frameContainer = (
-      <FrameContainer
-        pathname="/"
-        postUrl="/frames"
-        state={{ ...state, fid: otherUser?.fid }}
-        previousFrame={previousFrame}
-      >
-        <FrameImage>
-          <div tw="flex flex-col w-full h-full bg-slate-700 text-white justify-center items-center">
-            <p>
-              We could not find a high quality user who you might like
-            </p>
-            <p>
-              Please retry!
-            </p>
-          </div>
-        </FrameImage>
-        <FrameButton onClick={dispatch}>Retry</FrameButton>
-      </FrameContainer>
-    );
+      // please retry
+      frameContainer = (
+        <FrameContainer
+          pathname="/"
+          postUrl="/frames"
+          state={{ ...state, fid: otherUser?.fid }}
+          previousFrame={previousFrame}
+        >
+          <FrameImage>
+            <div tw="flex flex-col w-full h-full bg-slate-700 text-white justify-center items-center">
+              <p>We could not find a high quality user who you might like</p>
+              <p>Please retry!</p>
+            </div>
+          </FrameImage>
+          <FrameButton onClick={dispatch}>Retry</FrameButton>
+        </FrameContainer>
+      );
     } else {
-    frameContainer = (
-      <FrameContainer
-        pathname="/"
-        postUrl="/frames"
-        state={{ ...state, fid: otherUser?.fid }}
-        previousFrame={previousFrame}
-      >
-        <FrameImage>
-          <div tw="flex w-full h-full bg-slate-700 text-white justify-center items-center">
-            <img src={otherUser?.image} tw="object-cover w-96 h-96" />
-            <p>
-              you like? {otherUser?.displayName} ({otherUser?.fid}) ??
-            </p>
-          </div>
-        </FrameImage>
-        <FrameButton onClick={dispatch}>nope</FrameButton>
-        <FrameButton onClick={dispatch}>yay</FrameButton>
-      </FrameContainer>
-    );
+      frameContainer = (
+        <FrameContainer
+          pathname="/"
+          postUrl="/frames"
+          state={{ ...state, fid: otherUser?.fid }}
+          previousFrame={previousFrame}
+        >
+          <FrameImage>
+            <div tw="flex w-full h-full bg-slate-700 text-white justify-center items-center">
+              <img src={otherUser?.image} tw="object-cover w-96 h-96" />
+              <p>
+                you like? {otherUser?.displayName} ({otherUser?.fid}) ??
+              </p>
+            </div>
+          </FrameImage>
+          <FrameButton onClick={dispatch}>nope</FrameButton>
+          <FrameButton onClick={dispatch}>yay</FrameButton>
+        </FrameContainer>
+      );
     }
   } else if (state.phase === "matched") {
     frameContainer = (
