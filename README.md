@@ -1,6 +1,17 @@
-# Frames.js Starter Kit
+# Lovecaster
 
-This is a boilerplate repo to get started quickly with `frames.js`
+A simple frame based on the starter kit that tries to match farcaster users.
+
+This is a fast and dirty implementation just for fun.
+
+It queries the id counter from the Id Registry on optimism and tries to randomly
+find a user based on the FID. As many users do not have a name or an image,
+they are diregarded and a new random user is picked. We try this a number of
+times and throw an error if we exceed the retry counter.
+
+User data is queried from searchcaster.xyz, sorry for the spam boys.
+
+Matches are stores in vercel kv
 
 ## Quickstart
 
